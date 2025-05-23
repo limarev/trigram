@@ -1,0 +1,48 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": ["BasePresets.json"],
+  "configurePresets": [
+    {
+      "name": "ci-release",
+      "inherits": ["default", "release"]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release"
+    }
+  ],
+  "testPresets": [],
+  "packagePresets": [
+    {
+      "name": "ci-release",
+      "configurePreset": "ci-release",
+      "inherits": ["default", "zip"]
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "ci-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "ci-release"
+        },
+        {
+          "type": "build",
+          "name": "ci-release"
+        },
+        {
+          "type": "package",
+          "name": "ci-release"
+        }
+      ]
+    }
+  ]
+}

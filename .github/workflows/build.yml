@@ -1,0 +1,49 @@
+name: Build
+run-name: Build project
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: [ ubuntu-latest ]
+    env:
+      THIS_PROJECT_VERSION: ${{ github.ref_name }}
+      THIS_PROJECT_SHA: ${{ github.sha }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build info
+        run: |
+          echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+          echo "🐧 This job is now running on a ${{ runner.os }} server!"
+          echo "🔎 This job builds project."
+
+      - name: Build ${{ github.ref }}
+        run: |
+          cmake --workflow --preset ci-release
+
+      #      - name: 'Upload Artifact build/tick'
+      #        if: (!startsWith(github.ref, 'refs/tags/v'))
+      #        uses: actions/upload-artifact@v4
+      #        with:
+      #          name: tick.zip
+      #          path: build/tick
+      #          compression-level: 0 # no compression
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          generate_release_notes: true
+          target_commitish: main
+          prerelease: false
+          files: |
+            ci-release/*.zip
+
+      - run: echo "🍏 This job's status is ${{ job.status }}."
