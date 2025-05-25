@@ -23,7 +23,7 @@ else ()
     _git(describe --tags --abbrev=0)
     set(git_tag "${_git_out}")
 
-    _git(rev-parse --short HEAD)
+    _git(rev-parse HEAD)
     set(git_hash "${_git_out}")
 
 endif ()
