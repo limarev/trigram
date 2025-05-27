@@ -1,8 +1,11 @@
 #include "CLI11.hpp"
 #include "group_if.h"
 
+#define AQ
 #ifdef LF
 #include "lfqueue.h"
+#elifdef AQ
+#include "atomic_queue.h"
 #else
 #include "tsqueue.h"
 #endif
@@ -16,6 +19,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 #include <stack>
 #include <ranges>
@@ -98,7 +102,7 @@ void encode_utf8(uint32_t code_point, std::string& out) {
 
 
 struct Trigram {
-  auto operator<=>(const Trigram &) const = default;
+  auto constexpr operator<=>(const Trigram &) const = default;
   std::string to_utf8() const {
     std::string result;
 
@@ -114,11 +118,16 @@ struct Trigram {
 
     return result;
   }
-  alignas(64) uint64_t value;
+  uint64_t value;
 };
 
 #ifdef LF
 using Queue = lf::lf_queue<Trigram>;
+#elifdef AQ
+namespace {
+auto constexpr NIL = Trigram {4294967295};
+using Queue = atomic_queue::AtomicQueueB<Trigram, std::allocator<Trigram>, NIL>;
+}
 #else
 using Queue = ts::TSQueue<Trigram>;
 #endif
@@ -175,11 +184,11 @@ constexpr bool is_russian(uint32_t code_point) {
          (code_point == 0x0451) ||                         // ё
          (code_point == 0x0401);                           // Ё
 }
-
+/*
 template<>
 Trigram ts::Limiter<Trigram>() {
   return Trigram{};
-}
+}*/
 
 void produce(Queue &q, std::vector<word::Word>&& words) {
     // Генерируем триграммы для каждого слова
@@ -190,16 +199,21 @@ void produce(Queue &q, std::vector<word::Word>&& words) {
       auto trigrams = generate_trigrams(std::move(word));
 
       while (not empty(trigrams)) {
-        q.push(std::move(trigrams.back())); trigrams.pop_back();
+        q.push(trigrams.back());
+        trigrams.pop_back(); // std::this_thread::yield();
       }
     }
 
-    q.push(ts::Limiter<Trigram>());
+    q.push(Trigram{});
+    // q.push(ts::Limiter<Trigram>());
 }
 
 void consume(Queue &q, std::unordered_map<uint64_t, int> &result) {
-  Trigram value;
-  while (q.wait_and_pop(value)) {
+  while (true) {
+    auto value = q.pop();
+    if (value == Trigram{})
+      return;
+
     result[value.value]++;
   }
 }
@@ -248,7 +262,7 @@ int main(int argc, char** argv) {
 
 #define parallel1
 #ifdef parallel
-    Queue queue;
+    Queue queue(1024);
 
     std::thread producer(produce, std::ref(queue), std::move(words));
     std::thread consumer(consume, std::ref(queue), std::ref(result));
@@ -280,6 +294,7 @@ int main(int argc, char** argv) {
       std::cout << std::quoted(k.to_utf8()) << ": " << v << "\n";
     }*/
 
+    static_assert(std::atomic<Trigram>::is_always_lock_free);
 
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << std::endl;

@@ -136,8 +136,9 @@ void group_if(InputIterator first, InputIterator last, OutputIterator result, Gr
   char_group.reserve(32);
   for (; first != last; ++first) {
     const auto char_length = get_utf8_char_len(*first);
-    auto code_point = static_cast<UnicodeCodePoint>(*first);;
-
+    auto code_point = static_cast<UnicodeCodePoint>(*first);
+#define USE_SWITCH
+#ifdef USE_SWITCH
     switch (char_length) {
       [[likely]] case 1: {
         break;
@@ -165,11 +166,27 @@ void group_if(InputIterator first, InputIterator last, OutputIterator result, Gr
       }
       default: {}
     }
-
+#else
+    if (code_point == 2) {
+        auto a = *first++;
+        auto b = *first;
+        code_point = (a & 0x1F) << 6 | (b & 0x3F);
+    } else if (code_point == 3) {
+        auto a = *first++;
+        auto b = *first++;
+        auto c = *first;
+        code_point = (a& 0x1F) << 12 | (b & 0x3F) << 6 | (c& 0x3F);
+    } else if (code_point == 4) {
+        auto a = *first++;
+        auto b = *first++;
+        auto c = *first++;
+        auto d = *first;
+        code_point = (a & 0x1F) << 18 | (b & 0x3F) << 12 | (c & 0x3F) << 6 | (d & 0x3F);
+    }
+#endif
     if (pred(code_point)) {
       char_group.push_back(code_point);
     } else {
-      if (size(char_group) > 32) { std::cout << "Size: " << size(char_group) << '\n'; }
       CodePointGroup empty_char_group; empty_char_group.reserve(32);
       *result = convert(std::exchange(char_group, std::move(empty_char_group)));
       ++result;
